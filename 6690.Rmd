@@ -1,10 +1,7 @@
 ---
-title: "Pediction of Online Shoppers' Purchasing Intention"
-subtitle: "<h3>Fall 2019, DSPA(HS650), Term Paper</h3>"
+title: "Multiple ML Molde on Pediction of Online Shoppers' Purchasing Intention"
 
-author: "<h3>Chen Liang, Shi Lu</h3>"
-#tags: [DSPA, SOCR, MIDAS, Big Data, Predictive Analytics] 
-
+author: "<h3>Kangrui Li, Yuhang Wang, Linyang Han, Zheyuan Song</h3>"
 
 output:
   html_document:
@@ -19,25 +16,11 @@ output:
 ---
 [Back to Homepage](../index.html)
 
-* liangcc@umich.edu, lushi@umich.edu
-* Instructor: Ivo Dinov
-
-# Abstract
-
-In this project, we intend to use machine learning techniques to predict the visitor’s shopping intention. The data consist of features such as the closeness of the site visiting time to a special day, the number of pages visited by the visitor about a product, which was extracted from the visit log of an online shopping website. Random forest (RF), support vector machines(SVMs), and multilayer perceptron(MLP) are used for prediction. We use oversampling to improve the performance and scalability of the classifier. An ensemble using the predictions from the three models was run. The results show that MLP has higher accuracy and F1 Score than RF and SVM while oversampling did help with the model performance. The ensemble had the highest accuracy and F1 score among all. Page value, number of product-related pages visited and product-related page visiting time is the most important features to predict purchasing intention.
-
-# Introduction
-
-For online shopping websites, they could be popular for visitors, but the conversion rate for those who are interested in the product to those who make the purchases could less than ideal. Correctly identifying the aspect that websites could improve upon in order to turn more “visitors” into “buyers” becomes crucial. Also, being able to predict the potential “buyers” with higher accuracy would allow the websites to properly allocate their advertising or other visual information to encourage purchase behavior. Our goal of this paper is to find a better model to predict purchase intention and identify the important features that contribute to the prediction. 
-
-Feature “Product Related” refers to the number of pages visited by shoppers about the feature “Product Related”. The product is the one that shoppers want to buy, thus, the “Product Related” is an important feature to predict shopper’s intention.
-
-Feature “Month” represents the Month value of the visit day, and feature “Special Day” represents how close the day is to a “special day” which could be holidays and etc. Shoppers know that for some holidays, there is much more discount than ever. They would like to wait for that holiday to purchase what they into before. Thus, the month can be a crucial feature to predict their purchasing intention. 
-
-For features that are important to the purchase intention, we hypothesis that Product Related, and Month of the session are the most features to predict shopper’s intention.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 # Data Exploration and Visualization
-
 ## Data Description
 
 The dataset that is used in the current project comes from Sakar et al.(2019), in which the authors designed a system that could predict online shoppers purchasing intention and page abandonment. Online shoppers purchasing intention was cast as a binary classification problem, such that viewers would either made the final purchase or not. The dataset consists of 12330 sessions, of which record a session that a viewer visited items of the websites. Each session would belong to a different user in a 1-year period to avoid any tendency to a specific campaign, special day, user profile, or period. The dataset is highly imbalanced for 84.5%(10422) of the viewers did not make the final purchase.
@@ -68,8 +51,6 @@ The dataset that is used in the current project comes from Sakar et al.(2019), i
 After downloaded, we used read.csv() to import the file directly and summaried to see some statistics, like max, min and median values of 18 features. There are 10 numerical features and 8 categorical features. 
 
 ```{r, include=FALSE}
-# setwd("~/Desktop/HS 650/final project/")
-# rm(list=ls())
 
 library(magrittr)
 library(kableExtra)
@@ -282,7 +263,71 @@ rf_pred <- predict(rf_model, data_test)
 F1_Score(y_pred = rf_pred, y_true = data_test$Revenue, positive = "TRUE")
 Accuracy(y_pred = rf_pred, y_true = data_test$Revenue)
 ```
+```{r}
+rf_confusion <- confusionMatrix(data_test$Revenue, rf_pred)
+draw_confusion_matrix(rf_confusion)
+```
+## K-NN
+```{r}
+require(kknn)
+knn_model <- kknn(Revenue~., data_train, data_test, distance = 1, kernel = "triangular")
+knn_pred <-fitted(knn_model)
+#table(knn_pred,data_test$Revenue)
+freq <- table(knn_pred,data_test$Revenue)
+sum(diag(freq))/sum(freq)
+```
+```{r}
+knn_confusion <- confusionMatrix(data_test$Revenue, knn_pred)
+draw_confusion_matrix(knn_confusion)
+```
 
+
+
+## Decision Tree(Without Pruning)
+```{r}
+library(rpart)
+library(rpart.plot)
+osp.rpart <- rpart(Revenue~., data=data_train, method = 'class', cp=0)
+rpart.plot(osp.rpart, box.palette="RdBu", shadow.col="gray", nn=TRUE)
+osp.pred <- predict(osp.rpart, data_test, type="class")
+F1_Score(y_pred = osp.pred, y_true = data_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = osp.pred, y_true = data_test$Revenue)
+printcp(osp.rpart)
+plotcp(osp.rpart)
+```
+
+```{r}
+osp.rpart <- confusionMatrix(as.factor(osp.pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(osp.rpart)
+```
+## Decision Tree(With Pruning)
+```{r}
+osp.prune <- rpart(Revenue~., data=data_train, method = 'class', cp=0.008)
+rpart.plot(osp.prune, box.palette="RdBu", shadow.col="gray", nn=TRUE)
+
+prune.pred <- predict(osp.prune, data_test, type = "class") 
+F1_Score(y_pred = prune.pred, y_true = data_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = prune.pred, y_true = data_test$Revenue)
+```
+
+```{r}
+prune.rpart <- confusionMatrix(as.factor(prune.pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(prune.rpart)
+```
+
+## Neural Net
+```{r}
+library(nnet)
+nn <- nnet(data=data_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
+nn_pred <- predict(nn,data_test,type="class")
+#plot(nn_pred,)
+F1_Score(y_pred = nn_pred, y_true = data_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = nn_pred, y_true = data_test$Revenue)
+```
+```{r}
+nn_confusion <- confusionMatrix(as.factor(nn_pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(nn_confusion)
+```
 ## Multilayer Perceptron Classifier
 
 ```{r}
@@ -362,6 +407,14 @@ accuracy <- (tp + tn) / (tp + tn + fp + fn)
 print(f1)
 print(accuracy)
 ```
+```{r}
+mlp_confusion <- confusionMatrix(as.factor(pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(mlp_confusion)
+```
+## Bagging
+
+## K-means
+
 
 # Model Training with Oversampling
 
@@ -397,6 +450,10 @@ svm_over_pred <- predict(svm_over, data_over_test)
 F1_Score(y_pred = svm_over_pred, y_true = data_over_test$Revenue, positive = "TRUE")
 Accuracy(y_pred = svm_over_pred, y_true = data_over_test$Revenue)
 ```
+```{r}
+svm_over_confusion <- confusionMatrix(data_over_test$Revenue, svm_over_pred)
+draw_confusion_matrix(svm_over_confusion)
+```
 
 ## Bayes
 ```{r}
@@ -407,8 +464,8 @@ F1_Score(y_pred = by_over_pred, y_true = data_over_test$Revenue, positive = "TRU
 Accuracy(y_pred = by_over_pred, y_true = data_over_test$Revenue)
 ```
 ```{r}
-by_confusion <- confusionMatrix(data_over_test$Revenue, by_over_pred)
-draw_confusion_matrix(by_confusion)
+by_over_confusion <- confusionMatrix(data_over_test$Revenue, by_over_pred)
+draw_confusion_matrix(by_over_confusion)
 ```
 
 ## Adaboost
@@ -427,7 +484,6 @@ data.over.adaboost.pred <- predict.boosting(data.over.adaboost, newdata = data_o
 F1_Score(y_pred = data.over.adaboost.pred$class, y_true = data_over_test$Revenue, positive = "TRUE")
 Accuracy(y_pred = data.over.adaboost.pred$class, y_true = data_over_test$Revenue)
 ```
-
 
 ```{r}
 data.over.adaboost.confusion <- confusionMatrix(as.factor(data_over_test_adabooost$Revenue), as.factor(data.over.adaboost.pred$class))
@@ -456,7 +512,71 @@ rf_over_pred <- predict(rf_over, data_over_test)
 F1_Score(y_pred = rf_over_pred, y_true = data_over_test$Revenue, positive = "TRUE")
 Accuracy(y_pred = rf_over_pred, y_true = data_over_test$Revenue)
 ```
+```{r}
+rf_over_confusion <- confusionMatrix(rf_over_pred,data_over_test$Revenue)
+draw_confusion_matrix(rf_over_confusion)
+```
 
+
+```{r}
+require(kknn)
+knn_over_model <- kknn(Revenue~., data_over_train, data_over_test, distance = 1, kernel = "triangular")
+knn_over_pred <-fitted(knn_over_model)
+#table(knn_pred,data_test$Revenue)
+freq <- table(knn_over_pred,data_over_test$Revenue)
+sum(diag(freq))/sum(freq)
+```
+
+
+```{r}
+knn_over_confusion <- confusionMatrix(data_over_test$Revenue, knn_over_pred)
+draw_confusion_matrix(knn_over_confusion)
+```
+## Decision Tree(Without Pruning)
+```{r}
+library(rpart)
+library(rpart.plot)
+osp.over.rpart <- rpart(Revenue~., data=data_over_train, method = 'class', cp=0)
+rpart.plot(osp.over.rpart, box.palette="RdBu", shadow.col="gray", nn=TRUE)
+osp.over.pred <- predict(osp.over.rpart, data_over_test, type="class")
+F1_Score(y_pred = osp.over.pred, y_true = data_over_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = osp.over.pred, y_true = data_over_test$Revenue)
+printcp(osp.over.rpart)
+plotcp(osp.over.rpart)
+```
+
+```{r}
+osp.over.rpart <- confusionMatrix(as.factor(osp.over.pred), as.factor(data_over_test$Revenue))
+draw_confusion_matrix(osp.over.rpart)
+```
+## Decision Tree(With Pruning)
+```{r}
+osp.over.prune <- rpart(Revenue~., data=data_over_train, method = 'class', cp=0.004)
+rpart.plot(osp.over.prune, box.palette="RdBu", shadow.col="gray", nn=TRUE)
+
+prune.over.pred <- predict(osp.over.prune, data_over_test, type = "class") 
+F1_Score(y_pred = prune.over.pred, y_true = data_over_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = prune.over.pred, y_true = data_over_test$Revenue)
+```
+
+```{r}
+prune.over.rpart <- confusionMatrix(as.factor(prune.over.pred), as.factor(data_over_test$Revenue))
+draw_confusion_matrix(prune.over.rpart)
+```
+
+## Neural Net
+```{r}
+library(nnet)
+nn.over <- nnet(data=data_over_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
+nn.over.pred <- predict(nn.over,data_over_test,type="class")
+#plot(nn_pred,)
+F1_Score(y_pred = nn.over.pred, y_true = data_over_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = nn.over.pred, y_true = data_over_test$Revenue)
+```
+```{r}
+nn.over.confusion <- confusionMatrix(as.factor(nn.over.pred), as.factor(data_over_test$Revenue))
+draw_confusion_matrix(nn.over.confusion)
+```
 ## Multilayer Perceptron Classifier
 
 ```{r}
@@ -535,6 +655,15 @@ accuracy <- (tp + tn) / (tp + tn + fp + fn)
 print(f1)
 print(accuracy)
 ```
+
+```{r}
+mlp.over.confusion <- confusionMatrix(as.factor(pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(mlp.over.confusion)
+```
+## K-means
+
+## Bagging
+
 
 ## Ensemble
 
