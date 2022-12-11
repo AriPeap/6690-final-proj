@@ -120,7 +120,7 @@ corrplot(col, method = "square", title = "Correlation Matrix for Online Shoppers
 ```{r}
 pairs.panels(data_vis[c("ProductRelated", "ProductRelated_Duration")],
   method = "pearson", # correlation method
-  hist.col = "pink",
+  hist.col = "light blue",
   density = TRUE, # show density plots
 )
 ```
@@ -130,7 +130,7 @@ pairs.panels(data_vis[c("ProductRelated", "ProductRelated_Duration")],
 ```{r}
 pairs.panels(data_vis[c("BounceRates", "ExitRates")],
   method = "pearson", # correlation method
-  hist.col = "pink",
+  hist.col = "light blue",
   density = TRUE, # show density plots
 )
 ```
@@ -141,14 +141,14 @@ pairs.panels(data_vis[c("BounceRates", "ExitRates")],
 data_vis$Month <- factor(data_vis$Month, levels = c("Feb", "Mar", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
 barplot(table(data_vis$Month),
   main = "Popular Shopping Month", xlab = "Month", ylab = "Count", border = "navy",
-  col = "pink"
+  col = "light blue"
 )
 ```
 
  * Chart 5: displayed the different types of visitors and found out “returning_visitor” has many more numbers.
  
 ```{r}
-barplot(table(data_vis$VisitorType), main = "Visitor Type", xlab = "Type", ylab = "Count", border = "navy", col = "pink")
+barplot(table(data_vis$VisitorType), main = "Visitor Type", xlab = "Type", ylab = "Count", border = "navy", col = "light blue")
 ```
 
 # Model Training without Oversampling
@@ -196,13 +196,22 @@ F1_Score(y_pred = svm_pred, y_true = data_test$Revenue, positive = "TRUE")
 Accuracy(y_pred = svm_pred, y_true = data_test$Revenue)
 ```
 
-
 ```{r}
-
 svm_confusion <- confusionMatrix(data_test$Revenue, svm_pred)
 draw_confusion_matrix(svm_confusion)
 ```
+```{r}
+# SVM with rbf kernel
+svm_modelrbf <- ksvm(Revenue ~ ., data = data_train, kernel = "rbfdot")
+svm_predrbf <- predict(svm_modelrbf, data_test)
+F1_Score(y_pred = svm_predrbf, y_true = data_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = svm_predrbf, y_true = data_test$Revenue)
+```
 
+```{r}
+svm_confusionrbf <- confusionMatrix(data_test$Revenue, svm_predrbf)
+draw_confusion_matrix(svm_confusionrbf)
+```
 ## Bayes
 ```{r}
 library(e1071)
@@ -215,7 +224,6 @@ Accuracy(y_pred = by_pred, y_true = data_test$Revenue)
 by_confusion <- confusionMatrix(data_test$Revenue, by_pred)
 draw_confusion_matrix(by_confusion)
 ```
-
 ## Adaboost
 ```{r}
 
@@ -236,7 +244,7 @@ Accuracy(y_pred = data.adaboost.pred$class, y_true = data_test$Revenue)
 
 ```{r}
 data.adaboost.confusion <- confusionMatrix(as.factor(data_test_adabooost$Revenue), as.factor(data.adaboost.pred$class))
-data.adaboost.confusion
+#data.adaboost.confusion
 draw_confusion_matrix(data.adaboost.confusion)
 ```
 
@@ -314,20 +322,6 @@ Accuracy(y_pred = prune.pred, y_true = data_test$Revenue)
 prune.rpart <- confusionMatrix(as.factor(prune.pred), as.factor(data_test$Revenue))
 draw_confusion_matrix(prune.rpart)
 ```
-
-## Neural Net
-```{r}
-library(nnet)
-nn <- nnet(data=data_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
-nn_pred <- predict(nn,data_test,type="class")
-#plot(nn_pred,)
-F1_Score(y_pred = nn_pred, y_true = data_test$Revenue, positive = "TRUE")
-Accuracy(y_pred = nn_pred, y_true = data_test$Revenue)
-```
-```{r}
-nn_confusion <- confusionMatrix(as.factor(nn_pred), as.factor(data_test$Revenue))
-draw_confusion_matrix(nn_confusion)
-```
 ## Multilayer Perceptron Classifier
 
 ```{r}
@@ -357,9 +351,9 @@ mlp_train_y <- decodeClassLabels(mlp_train[, 18])
 mlp_data <- splitForTrainingAndTest(mlp_train_x, mlp_train_y, ratio = 0.1)
 
 mlp_model <- mlp(mlp_data$inputsTrain, mlp_data$targetsTrain,
-  size = 50, learnFuncParams = c(0.001),
+  size = 40, learnFuncParams = c(0.001),
   linOut = FALSE, hiddenActFunc = "Act_Logistic",
-  maxit = 50, inputsTest = mlp_data$inputsTest, targetsTest = mlp_data$targetsTest
+  maxit = 40, inputsTest = mlp_data$inputsTest, targetsTest = mlp_data$targetsTest
 )
 ```
 
@@ -404,13 +398,55 @@ recall <- tp / (tp + fn)
 preci <- tp / (tp + fp)
 f1 <- 2 * recall * preci / (recall + preci)
 accuracy <- (tp + tn) / (tp + tn + fp + fn)
+Tpr <- tp/(tp+fn)
+Tnr <- tn/(tn+fp)
 print(f1)
+print(Tpr)
+print(Tnr)
 print(accuracy)
 ```
 ```{r}
 mlp_confusion <- confusionMatrix(as.factor(pred), as.factor(data_test$Revenue))
 draw_confusion_matrix(mlp_confusion)
 ```
+## DNN
+```{r}
+library(keras)
+#x_train <- to_categorical(data_train,2)
+#x_test <- to_categorical(data_test,2)
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 256, activation = 'relu', input_shape = c(17)) %>% 
+  layer_dropout(rate = 0.5) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 2, activation = 'softmax')
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+history <- model %>% fit(
+  mlp_data$inputsTrain, mlp_data$targetsTrain,
+  epochs = 30, batch_size = 128, 
+  validation_split = 0.2
+)
+
+```
+```{r}
+library(labeling)
+plot(history)
+```
+```{r}
+library(nnet)
+nn <- nnet(data=data_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
+nn_pred <- predict(nn,data_test,type="class")
+#plot(nn_pred,)
+nn_confusion <- confusionMatrix(as.factor(nn_pred), as.factor(data_test$Revenue))
+draw_confusion_matrix(nn_confusion)
+```
+
+
 ## Bagging
 
 ## K-means
@@ -454,7 +490,18 @@ Accuracy(y_pred = svm_over_pred, y_true = data_over_test$Revenue)
 svm_over_confusion <- confusionMatrix(data_over_test$Revenue, svm_over_pred)
 draw_confusion_matrix(svm_over_confusion)
 ```
+```{r}
+# SVM with rbf kernel
+svm_over_modelrbf <- ksvm(Revenue ~ ., data = data_over_train, kernel = "rbfdot")
+svm_over_predrbf <- predict(svm_over_modelrbf, data_over_test)
+F1_Score(y_pred = svm_over_predrbf, y_true = data_over_test$Revenue, positive = "TRUE")
+Accuracy(y_pred = svm_over_predrbf, y_true = data_over_test$Revenue)
+```
 
+```{r}
+svm_over_confusionrbf <- confusionMatrix(data_test$Revenue, svm_over_predrbf)
+draw_confusion_matrix(svm_over_confusionrbf)
+```
 ## Bayes
 ```{r}
 library(e1071)
@@ -516,8 +563,6 @@ Accuracy(y_pred = rf_over_pred, y_true = data_over_test$Revenue)
 rf_over_confusion <- confusionMatrix(rf_over_pred,data_over_test$Revenue)
 draw_confusion_matrix(rf_over_confusion)
 ```
-
-
 ```{r}
 require(kknn)
 knn_over_model <- kknn(Revenue~., data_over_train, data_over_test, distance = 1, kernel = "triangular")
@@ -563,20 +608,6 @@ Accuracy(y_pred = prune.over.pred, y_true = data_over_test$Revenue)
 prune.over.rpart <- confusionMatrix(as.factor(prune.over.pred), as.factor(data_over_test$Revenue))
 draw_confusion_matrix(prune.over.rpart)
 ```
-
-## Neural Net
-```{r}
-library(nnet)
-nn.over <- nnet(data=data_over_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
-nn.over.pred <- predict(nn.over,data_over_test,type="class")
-#plot(nn_pred,)
-F1_Score(y_pred = nn.over.pred, y_true = data_over_test$Revenue, positive = "TRUE")
-Accuracy(y_pred = nn.over.pred, y_true = data_over_test$Revenue)
-```
-```{r}
-nn.over.confusion <- confusionMatrix(as.factor(nn.over.pred), as.factor(data_over_test$Revenue))
-draw_confusion_matrix(nn.over.confusion)
-```
 ## Multilayer Perceptron Classifier
 
 ```{r}
@@ -607,7 +638,7 @@ mlp_over_data <- splitForTrainingAndTest(mlp_over_train_x, mlp_over_train_y, rat
 # iris <- normTrainingAndTestSet(iris)
 
 mlp_over <- mlp(mlp_over_data$inputsTrain, mlp_over_data$targetsTrain,
-  size = 20, learnFuncParams = c(0.001),
+  size = 40, learnFuncParams = c(0.001),
   maxit = 150, learnFunc = "Rprop", inputsTest = mlp_over_data$inputsTest, targetsTest = mlp_over_data$targetsTest
 )
 ```
@@ -652,7 +683,11 @@ recall <- tp / (tp + fn)
 preci <- tp / (tp + fp)
 f1 <- 2 * recall * preci / (recall + preci)
 accuracy <- (tp + tn) / (tp + tn + fp + fn)
+Tpr <- tp/(tp+fn)
+Tnr <- tn/(tn+fp)
 print(f1)
+print(Tpr)
+print(Tnr)
 print(accuracy)
 ```
 
@@ -660,6 +695,45 @@ print(accuracy)
 mlp.over.confusion <- confusionMatrix(as.factor(pred), as.factor(data_test$Revenue))
 draw_confusion_matrix(mlp.over.confusion)
 ```
+## DNN
+```{r}
+library(keras)
+#x_train <- to_categorical(data_train,2)
+#x_test <- to_categorical(data_test,2)
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 256, activation = 'relu', input_shape = c(17)) %>% 
+  layer_dropout(rate = 0.5) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 2, activation = 'softmax')
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+history <- model %>% fit(
+  mlp_over_data$inputsTrain, mlp_over_data$targetsTrain,
+  epochs = 30, batch_size = 128, 
+  validation_split = 0.2
+)
+
+```
+
+```{r}
+library(labeling)
+plot(history)
+```
+```{r}
+library(nnet)
+nn.over <- nnet(data=data_over_train, Revenue~.,size = 10, rang = 0.1, decay = 0.01, maxit = 200, trControl = fitControl)
+nn.over.pred <- predict(nn.over,data_over_test,type="class")
+#plot(nn_pred,)
+nn.over.confusion <- confusionMatrix(as.factor(nn.over.pred), as.factor(data_over_test$Revenue))
+draw_confusion_matrix(nn.over.confusion)
+```
+
+
 ## K-means
 
 ## Bagging
