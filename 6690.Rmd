@@ -733,11 +733,27 @@ nn.over.confusion <- confusionMatrix(as.factor(nn.over.pred), as.factor(data_ove
 draw_confusion_matrix(nn.over.confusion)
 ```
 
-
-## K-means
-
 ## Bagging
 
+```{r}
+
+library(adabag)
+library(rpart)
+library(rpart.plot)
+
+data_train <- data_train[,-1]
+
+Ctl<-rpart.control(minsplit=20,maxcompete=4,maxdepth=30,cp=0.01,xval=10)
+set.seed(12345)
+bag_model <- bagging(Revenue~.,data=data_train,control=Ctl,mfinal = 25)
+bag_pred <- predict(bag_model, data_test)
+
+bag_model$importance
+CFit3 <- predict.bagging(bag_model, data_test)
+CFit3$confusion
+CFit3$error
+
+```
 
 ## Ensemble
 
